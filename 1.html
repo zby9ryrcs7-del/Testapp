@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Диспетчерская техников</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #6b7280;
+    --line: #e5e7eb; --accent: #2563eb; --accent-text: #ffffff;
+    --ok-bg: #ecfdf5; --ok: #047857; --err-bg: #fef2f2; --err: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --card: #171a21; --text: #e5e7eb; --muted: #9ca3af;
+      --line: #2a2f3a; --accent: #3b82f6; --ok-bg: #0b2a20; --ok: #34d399;
+      --err-bg: #2c1214; --err: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--text); font-size: 15px; }
+  header { padding: 20px 16px 0; max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  header p { margin: 0; color: var(--muted); }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; max-width: 960px; margin: 16px auto 0; padding: 0 16px; }
+  nav button { border: 1px solid var(--line); background: var(--card); color: var(--text);
+               padding: 8px 14px; border-radius: 8px; cursor: pointer; font: inherit; }
+  nav button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  main { max-width: 960px; margin: 16px auto 40px; padding: 0 16px; }
+  section { display: none; background: var(--card); border: 1px solid var(--line);
+            border-radius: 12px; padding: 16px; }
+  section.active { display: block; }
+  h2 { font-size: 18px; margin: 0 0 4px; }
+  .hint { color: var(--muted); margin: 0 0 14px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  select, input { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px;
+                  background: var(--card); color: var(--text); min-width: 0; }
+  form { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+         align-items: end; margin-bottom: 16px; }
+  label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  .btn { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 8px;
+         padding: 9px 14px; font: inherit; cursor: pointer; }
+  .btn:disabled { opacity: .6; cursor: wait; }
+  .msg { padding: 10px 12px; border-radius: 8px; margin-bottom: 14px; display: none; }
+  .msg.ok { display: block; background: var(--ok-bg); color: var(--ok); }
+  .msg.err { display: block; background: var(--err-bg); color: var(--err); }
+  .saved { color: var(--ok); font-size: 13px; margin-left: 6px; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Диспетчерская техников</h1>
+  <p>Зоны, ZIP-коды, техники, клиенты и заказы</p>
+</header>
+
+<nav>
+  <button data-tab="zips" class="active">ZIP → Зоны</button>
+  <button data-tab="techs">Техники → Зоны</button>
+  <button data-tab="clients">Клиенты</button>
+  <button data-tab="orders">Заказы</button>
+</nav>
+
+<main>
+  <div id="globalMsg" class="msg"></div>
+
+  <section id="zips" class="active">
+    <h2>Назначение ZIP-кодов зонам</h2>
+    <p class="hint">Выберите зону в списке — изменение сохраняется сразу.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>ZIP</th><th>Город</th><th>Зона</th></tr></thead>
+      <tbody id="zipRows"></tbody>
+    </table></div>
+  </section>
+
+  <section id="techs">
+    <h2>Назначение техников зонам</h2>
+    <p class="hint">Техник получает заказы только из своей зоны.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>Имя</th><th>Зона</th></tr></thead>
+      <tbody id="techRows"></tbody>
+    </table></div>
+  </section>
+
+  <section id="clients">
+    <h2>Клиенты</h2>
+    <p class="hint">Новый клиент сразу появится в списке и в форме заказа.</p>
+    <div id="clientMsg" class="msg"></div>
+    <form id="clientForm">
+      <label>Имя <input name="name" required placeholder="Jane Doe"></label>
+      <label>Улица <input name="street" required placeholder="123 Main St"></label>
+      <label>ZIP <select name="zip" id="clientZip" required></select></label>
+      <button class="btn" type="submit">Добавить клиента</button>
+    </form>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>Имя</th><th>Улица</th><th>ZIP</th><th>Город</th></tr></thead>
+      <tbody id="clientRows"></tbody>
+    </table></div>
+  </section>
+
+  <section id="orders">
+    <h2>Создание заказа</h2>
+    <p class="hint">По ZIP заказа находится зона, из неё назначается техник с наименьшим ID.</p>
+    <div id="orderMsg" class="msg"></div>
+    <form id="orderForm">
+      <label>Клиент <select name="client" id="orderClient" required></select></label>
+      <label>ZIP заказа <select name="zip" id="orderZip" required></select></label>
+      <button class="btn" type="submit">Создать заказ и назначить техника</button>
+    </form>
+    <div class="table-wrap"><table>
+      <thead><tr><th>№</th><th>Дата</th><th>Клиент</th><th>ZIP</th><th>Зона</th><th>Техник</th></tr></thead>
+      <tbody id="orderRows"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+// Публичные данные проекта: этот ключ предназначен для браузера
+const SUPABASE_URL = 'https://wfanorfjdfapsnxbrklj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ebkA5csminuh_PUZsuxy_g_-hc5h0_b';
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const state = { zones: [], zips: [], techs: [], clients: [], orders: [] };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function show(el, text, ok) { el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
+function hide(el) { el.className = 'msg'; }
+
+// Вкладки
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('section').forEach(s => s.classList.toggle('active', s.id === b.dataset.tab));
+}));
+
+const zoneName = (id) => state.zones.find(z => z.id === id)?.name ?? '—';
+const cityOf = (zip) => state.zips.find(z => z.zip === zip)?.city ?? '';
+
+function zoneSelect(current) {
+  return `<option value="">— не назначена —</option>` +
+    state.zones.map(z => `<option value="${z.id}" ${z.id === current ? 'selected' : ''}>${esc(z.name)}</option>`).join('');
+}
+
+// Загрузка всех таблиц
+async function loadAll() {
+  const [zones, zips, techs, clients, orders] = await Promise.all([
+    db.from('zones').select('*').order('id'),
+    db.from('zip_codes').select('*').order('id'),
+    db.from('technicians').select('*').order('id'),
+    db.from('clients').select('*').order('id', { ascending: false }),
+    db.from('orders').select('*').order('id', { ascending: false }),
+  ]);
+  const err = [zones, zips, techs, clients, orders].find(r => r.error);
+  if (err) { show($('globalMsg'), 'Ошибка загрузки: ' + err.error.message, false); return; }
+  hide($('globalMsg'));
+  Object.assign(state, { zones: zones.data, zips: zips.data, techs: techs.data, clients: clients.data, orders: orders.data });
+  render();
+}
+
+function render() {
+  $('zipRows').innerHTML = state.zips.map(z => `
+    <tr><td>${z.id}</td><td>${esc(z.zip)}</td><td>${esc(z.city)}</td>
+    <td><select data-zip-id="${z.id}">${zoneSelect(z.zone_id)}</select><span class="saved"></span></td></tr>`).join('');
+
+  $('techRows').innerHTML = state.techs.map(t => `
+    <tr><td>${t.id}</td><td>${esc(t.name)}</td>
+    <td><select data-tech-id="${t.id}">${zoneSelect(t.zone_id)}</select><span class="saved"></span></td></tr>`).join('');
+
+  const zipOptions = state.zips.map(z => `<option value="${esc(z.zip)}">${esc(z.zip)} — ${esc(z.city)}</option>`).join('');
+  $('clientZip').innerHTML = zipOptions;
+  $('orderZip').innerHTML = zipOptions;
+
+  $('clientRows').innerHTML = state.clients.map(c => `
+    <tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${esc(c.street)}</td><td>${esc(c.zip)}</td><td>${esc(cityOf(c.zip))}</td></tr>`).join('');
+
+  const selectedClient = $('orderClient').value;
+  $('orderClient').innerHTML = [...state.clients].sort((a, b) => a.name.localeCompare(b.name))
+    .map(c => `<option value="${c.id}">${esc(c.name)} (ZIP ${esc(c.zip)})</option>`).join('');
+  if (selectedClient) $('orderClient').value = selectedClient;
+  syncOrderZip();
+
+  $('orderRows').innerHTML = state.orders.length ? state.orders.map(o => {
+    const client = state.clients.find(c => c.id === o.client_id);
+    const tech = state.techs.find(t => t.id === o.technician_id);
+    const zip = state.zips.find(z => z.zip === o.zip);
+    return `<tr><td>${o.id}</td><td>${new Date(o.created_at).toLocaleString('ru-RU')}</td>
+      <td>${esc(client?.name ?? '#' + o.client_id)}</td><td>${esc(o.zip)}</td>
+      <td>${esc(zoneName(zip?.zone_id))}</td><td>${esc(tech ? tech.name + ' (ID ' + tech.id + ')' : '#' + o.technician_id)}</td></tr>`;
+  }).join('') : `<tr><td colspan="6" class="muted">Заказов пока нет</td></tr>`;
+}
+
+// По умолчанию ZIP заказа = ZIP клиента
+function syncOrderZip() {
+  const c = state.clients.find(c => String(c.id) === $('orderClient').value);
+  if (c) $('orderZip').value = c.zip;
+}
+$('orderClient').addEventListener('change', syncOrderZip);
+
+// Сохранение зоны для ZIP и техника
+async function saveZone(table, id, value, selectEl) {
+  const zone_id = value === '' ? null : Number(value);
+  const { error } = await db.from(table).update({ zone_id }).eq('id', id);
+  const mark = selectEl.nextElementSibling;
+  if (error) { mark.textContent = 'ошибка: ' + error.message; mark.style.color = 'var(--err)'; return; }
+  const row = (table === 'zip_codes' ? state.zips : state.techs).find(r => r.id === id);
+  if (row) row.zone_id = zone_id;
+  mark.style.color = ''; mark.textContent = 'сохранено';
+  setTimeout(() => { mark.textContent = ''; }, 1500);
+}
+$('zipRows').addEventListener('change', e => {
+  if (e.target.dataset.zipId) saveZone('zip_codes', Number(e.target.dataset.zipId), e.target.value, e.target);
+});
+$('techRows').addEventListener('change', e => {
+  if (e.target.dataset.techId) saveZone('technicians', Number(e.target.dataset.techId), e.target.value, e.target);
+});
+
+// Добавление клиента
+$('clientForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const btn = e.target.querySelector('button'); btn.disabled = true;
+  const { error } = await db.from('clients').insert({
+    name: f.get('name').trim(), street: f.get('street').trim(), zip: f.get('zip')
+  });
+  btn.disabled = false;
+  if (error) return show($('clientMsg'), 'Не удалось добавить: ' + error.message, false);
+  show($('clientMsg'), 'Клиент добавлен', true);
+  e.target.reset();
+  loadAll();
+});
+
+// Создание заказа с автоназначением техника
+$('orderForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const msg = $('orderMsg');
+  const clientId = Number($('orderClient').value);
+  const zip = $('orderZip').value;
+  const btn = e.target.querySelector('button'); btn.disabled = true;
+  try {
+    // 1. ZIP → зона
+    const { data: zipRow, error: e1 } = await db.from('zip_codes').select('zone_id').eq('zip', zip).single();
+    if (e1) throw new Error('ZIP ' + zip + ' не найден');
+    if (!zipRow.zone_id) throw new Error('ZIP ' + zip + ' не назначен ни одной зоне. Назначьте зону на вкладке «ZIP → Зоны».');
+
+    // 2. Зона → первый техник по ID
+    const { data: techs, error: e2 } = await db.from('technicians').select('id, name')
+      .eq('zone_id', zipRow.zone_id).order('id').limit(1);
+    if (e2) throw new Error(e2.message);
+    if (!techs.length) throw new Error('В зоне ' + zoneName(zipRow.zone_id) + ' нет техников. Назначьте техника на вкладке «Техники → Зоны».');
+    const tech = techs[0];
+
+    // 3. Сохраняем заказ
+    const { error: e3 } = await db.from('orders').insert({ client_id: clientId, zip, technician_id: tech.id });
+    if (e3) throw new Error(e3.message);
+
+    show(msg, `Заказ создан. Назначен техник ${tech.name} (ID ${tech.id}), зона ${zoneName(zipRow.zone_id)}.`, true);
+    loadAll();
+  } catch (err) {
+    show(msg, 'Ошибка: ' + err.message, false);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+loadAll();
+</script>
+</body>
+</html>
